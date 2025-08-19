@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
-// Define o tipo para os valores de um quadrado: 'X', 'O' ou nulo (vazio)
 type SquareValue = 'X' | 'O' | null;
+const COMPUTER_PLAYER = 'O';
+const HUMAN_PLAYER = 'X';
 
-// Componente para um único quadrado no tabuleiro
 function Square({ value, onSquareClick }: { value: SquareValue; onSquareClick: () => void }) {
   return (
     <button className="square" onClick={onSquareClick}>
@@ -12,39 +12,70 @@ function Square({ value, onSquareClick }: { value: SquareValue; onSquareClick: (
   );
 }
 
-// Componente principal do tabuleiro
+// COMPONENTE PRINCIPAL
 function Board() {
-  // Estado para controlar de quem é a vez (X começa)
+  const [gameMode, setGameMode] = useState<'two-player' | 'single-player' | null>(null);
+  // Novo estado para a dificuldade
+  const [difficulty, setDifficulty] = useState<'easy' | 'hard' | null>(null);
+
   const [isXNext, setIsXNext] = useState<boolean>(true);
-  
-  // Estado para armazenar o valor de cada um dos 9 quadrados
   const [squares, setSquares] = useState<SquareValue[]>(Array(9).fill(null));
 
-  // Função chamada quando um quadrado é clicado
-  function handleClick(i: number) {
-    // Se o quadrado já estiver preenchido ou se o jogo já tiver um vencedor, não faz nada
+  const handleClick = useCallback((i: number, isComputerMove: boolean = false) => {
     if (squares[i] || calculateWinner(squares)) {
       return;
     }
-
-    // Cria uma cópia do array de quadrados para manter a imutabilidade
-    const nextSquares = squares.slice();
     
-    // Define 'X' ou 'O' no quadrado clicado
-    nextSquares[i] = isXNext ? 'X' : 'O';
+    if(gameMode === 'single-player' && !isXNext && !isComputerMove) {
+      return;
+    }
 
-    // Atualiza o estado do tabuleiro e passa a vez para o próximo jogador
+    const nextSquares = squares.slice();
+    nextSquares[i] = isXNext ? HUMAN_PLAYER : COMPUTER_PLAYER;
+
     setSquares(nextSquares);
     setIsXNext(!isXNext);
-  }
+  }, [squares, isXNext, gameMode]);
 
-  // Função para reiniciar o jogo
+  // Efeito que aciona a jogada do computador
+  useEffect(() => {
+    // Só executa se for a vez do computador no modo single-player e o jogo não tiver acabado
+    if (gameMode === 'single-player' && !isXNext && !calculateWinner(squares)) {
+      
+      let computerMove: number;
+
+      // Lógica para escolher a jogada baseada na dificuldade
+      if (difficulty === 'hard') {
+        computerMove = findBestMove(squares);
+      } else { // 'easy'
+        const emptySquares = squares
+          .map((square, index) => (square === null ? index : null))
+          .filter((val) => val !== null) as number[];
+        
+        const randomIndex = Math.floor(Math.random() * emptySquares.length);
+        computerMove = emptySquares[randomIndex];
+      }
+
+      // Adiciona um pequeno atraso para a jogada parecer mais natural
+      if (computerMove !== -1) {
+        setTimeout(() => {
+          handleClick(computerMove, true); 
+        }, 500);
+      }
+    }
+  }, [isXNext, squares, gameMode, difficulty, handleClick]);
+
   function handleReset() {
     setSquares(Array(9).fill(null));
     setIsXNext(true);
   }
 
-  // Determina o vencedor ou o status atual do jogo
+  function handleBackToMenu() {
+    handleReset();
+    setGameMode(null);
+    setDifficulty(null); // Reseta a dificuldade também
+  }
+
   const winner = calculateWinner(squares);
   const isDraw = !winner && squares.every(square => square !== null);
   let status;
@@ -56,59 +87,140 @@ function Board() {
   } else {
     status = `Próximo jogador: ${isXNext ? 'X' : 'O'}`;
   }
+  
+  // RENDERIZAÇÃO CONDICIONAL DA UI
 
+  // 1. Tela Inicial: Escolher modo de jogo
+  if (!gameMode) {
+    return (
+      <div className="game-container">
+        <h1>Jogo da Velha</h1>
+        <div className="mode-selection">
+          <button className="mode-button" onClick={() => setGameMode('single-player')}>
+            Jogar Sozinho (vs. PC)
+          </button>
+          <button className="mode-button" onClick={() => setGameMode('two-player')}>
+            Jogar em Dupla
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Tela Intermediária: Escolher dificuldade (se modo for single-player)
+  if (gameMode === 'single-player' && !difficulty) {
+    return (
+      <div className="game-container">
+        <h1>Escolha a Dificuldade</h1>
+        <div className="mode-selection">
+          <button className="mode-button easy" onClick={() => setDifficulty('easy')}>
+            Fácil
+          </button>
+          <button className="mode-button hard" onClick={() => setDifficulty('hard')}>
+            Impossível
+          </button>
+        </div>
+        <button className="back-button" onClick={handleBackToMenu}>Voltar</button>
+      </div>
+    );
+  }
+
+  // 3. Tela Principal: O Jogo
   return (
     <div className="game-container">
       <div className="status">{status}</div>
       <div className="board">
-        <div className="board-row">
-          <Square value={squares[0]} onSquareClick={() => handleClick(0)} />
-          <Square value={squares[1]} onSquareClick={() => handleClick(1)} />
-          <Square value={squares[2]} onSquareClick={() => handleClick(2)} />
-        </div>
-        <div className="board-row">
-          <Square value={squares[3]} onSquareClick={() => handleClick(3)} />
-          <Square value={squares[4]} onSquareClick={() => handleClick(4)} />
-          <Square value={squares[5]} onSquareClick={() => handleClick(5)} />
-        </div>
-        <div className="board-row">
-          <Square value={squares[6]} onSquareClick={() => handleClick(6)} />
-          <Square value={squares[7]} onSquareClick={() => handleClick(7)} />
-          <Square value={squares[8]} onSquareClick={() => handleClick(8)} />
-        </div>
+        {squares.map((square, i) => (
+          <Square key={i} value={square} onSquareClick={() => handleClick(i)} />
+        ))}
       </div>
-      <button className="reset-button" onClick={handleReset}>
-        Reiniciar Jogo
-      </button>
+      <div className="button-group">
+        <button className="reset-button" onClick={handleReset}>
+          Reiniciar Jogo
+        </button>
+        <button className="reset-button" onClick={handleBackToMenu}>
+          Mudar Modo
+        </button>
+      </div>
     </div>
   );
 }
 
-// Função auxiliar para calcular o vencedor
-function calculateWinner(squares: SquareValue[]): SquareValue {
-  // Todas as combinações possíveis de vitória
-  const lines = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6],
-  ];
+// FUNÇÕES AUXILIARES (fora do componente)
 
+function calculateWinner(squares: SquareValue[]): SquareValue {
+  const lines = [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8],
+    [0, 3, 6], [1, 4, 7], [2, 5, 8],
+    [0, 4, 8], [2, 4, 6],
+  ];
   for (let i = 0; i < lines.length; i++) {
     const [a, b, c] = lines[i];
-    // Verifica se os três quadrados da linha têm o mesmo valor ('X' ou 'O')
     if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-      return squares[a]; // Retorna 'X' ou 'O'
+      return squares[a];
     }
   }
-
-  return null; // Retorna nulo se não houver vencedor
+  return null;
 }
 
+// --- LÓGICA MINIMAX (NÍVEL DIFÍCIL) ---
 
-// Exporta o componente principal para ser usado no seu app
+// Função principal que inicia o Minimax
+function findBestMove(squares: SquareValue[]): number {
+  let bestVal = -Infinity;
+  let bestMove = -1;
+
+  for (let i = 0; i < squares.length; i++) {
+    if (squares[i] === null) {
+      squares[i] = COMPUTER_PLAYER; 
+      
+      // A CORREÇÃO ESTÁ AQUI:
+      const moveVal = minimax(squares, 0, false); // Trocado 'let' por 'const'
+      
+      squares[i] = null; // Desfaz a jogada
+
+      if (moveVal > bestVal) {
+        bestMove = i;
+        bestVal = moveVal;
+      }
+    }
+  }
+  return bestMove;
+}
+
+// Função recursiva Minimax
+function minimax(board: SquareValue[], depth: number, isMaximizing: boolean): number {
+  const winner = calculateWinner(board);
+
+  // Casos base: o jogo terminou
+  if (winner === COMPUTER_PLAYER) return 10 - depth;
+  if (winner === HUMAN_PLAYER) return depth - 10;
+  if (board.every(square => square !== null)) return 0; // Empate
+
+  // Se é a vez do maximizador (Computador)
+  if (isMaximizing) {
+    let best = -Infinity;
+    for (let i = 0; i < board.length; i++) {
+      if (board[i] === null) {
+        board[i] = COMPUTER_PLAYER;
+        best = Math.max(best, minimax(board, depth + 1, !isMaximizing));
+        board[i] = null;
+      }
+    }
+    return best;
+  } 
+  // Se é a vez do minimizador (Humano)
+  else {
+    let best = Infinity;
+    for (let i = 0; i < board.length; i++) {
+      if (board[i] === null) {
+        board[i] = HUMAN_PLAYER;
+        best = Math.min(best, minimax(board, depth + 1, !isMaximizing));
+        board[i] = null;
+      }
+    }
+    return best;
+  }
+}
+
 export default Board;

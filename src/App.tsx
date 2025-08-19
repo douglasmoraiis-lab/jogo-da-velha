@@ -15,7 +15,6 @@ function Square({ value, onSquareClick }: { value: SquareValue; onSquareClick: (
 // COMPONENTE PRINCIPAL
 function Board() {
   const [gameMode, setGameMode] = useState<'two-player' | 'single-player' | null>(null);
-  // 1. Atualiza o estado para incluir 'medium'
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard' | null>(null);
 
   const [isXNext, setIsXNext] = useState<boolean>(true);
@@ -43,9 +42,9 @@ function Board() {
       
       let computerMove: number = -1;
 
-      // 2. Adiciona a lógica para o nível médio
       if (difficulty === 'hard') {
-        computerMove = findBestMove(squares);
+        // MODIFICADO: Chama a nova função com a falha programada
+        computerMove = findFlawedBestMove(squares);
       } else if (difficulty === 'medium') {
         computerMove = findMediumMove(squares);
       } else { // 'easy'
@@ -90,8 +89,7 @@ function Board() {
     status = `Próximo jogador: ${isXNext ? 'X' : 'O'}`;
   }
   
-  // RENDERIZAÇÃO CONDICIONAL DA UI
-
+  // As renderizações da UI continuam as mesmas...
   if (!gameMode) {
     return (
       <div className="game-container">
@@ -112,7 +110,6 @@ function Board() {
     return (
       <div className="game-container">
         <h1>Escolha a Dificuldade</h1>
-        {/* 3. Adiciona o botão de dificuldade Média */}
         <div className="mode-selection">
           <button className="mode-button easy" onClick={() => setDifficulty('easy')}>
             Fácil
@@ -152,18 +149,18 @@ function Board() {
 // FUNÇÕES AUXILIARES (fora do componente)
 
 function calculateWinner(squares: SquareValue[]): SquareValue {
-  const lines = [
-    [0, 1, 2], [3, 4, 5], [6, 7, 8],
-    [0, 3, 6], [1, 4, 7], [2, 5, 8],
-    [0, 4, 8], [2, 4, 6],
-  ];
-  for (let i = 0; i < lines.length; i++) {
-    const [a, b, c] = lines[i];
-    if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-      return squares[a];
+    const lines = [
+        [0, 1, 2], [3, 4, 5], [6, 7, 8],
+        [0, 3, 6], [1, 4, 7], [2, 5, 8],
+        [0, 4, 8], [2, 4, 6],
+    ];
+    for (let i = 0; i < lines.length; i++) {
+        const [a, b, c] = lines[i];
+        if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
+            return squares[a];
+        }
     }
-  }
-  return null;
+    return null;
 }
 
 // --- LÓGICA NÍVEL MÉDIO ---
@@ -172,30 +169,44 @@ function findMediumMove(squares: SquareValue[]): number {
     .map((sq, index) => (sq === null ? index : null))
     .filter((val) => val !== null) as number[];
 
-  // 1. Checa se o COMPUTADOR pode ganhar
   for (const i of emptySquares) {
     const tempSquares = squares.slice();
     tempSquares[i] = COMPUTER_PLAYER;
     if (calculateWinner(tempSquares) === COMPUTER_PLAYER) {
-      return i; // Jogada vencedora
+      return i;
     }
   }
 
-  // 2. Checa se o HUMANO pode ganhar (e bloqueia)
   for (const i of emptySquares) {
     const tempSquares = squares.slice();
     tempSquares[i] = HUMAN_PLAYER;
     if (calculateWinner(tempSquares) === HUMAN_PLAYER) {
-      return i; // Bloqueia o oponente
+      return i;
     }
   }
-
-  // 3. Se não houver jogadas críticas, joga aleatoriamente
+  
   const randomIndex = Math.floor(Math.random() * emptySquares.length);
   return emptySquares[randomIndex];
 }
 
-// --- LÓGICA MINIMAX (NÍVEL DIFÍCIL) ---
+// --- LÓGICA DO NÍVEL IMPOSSÍVEL COM FALHA ---
+
+// NOVO: Função que contém a falha programada
+function findFlawedBestMove(squares: SquareValue[]): number {
+    // Condição da armadilha: O jogador jogou nos cantos 0 e 8, e o computador está em sua segunda jogada.
+    const moveCount = squares.filter(s => s !== null).length;
+    if (moveCount === 3 && squares[0] === HUMAN_PLAYER && squares[8] === HUMAN_PLAYER) {
+        // A jogada correta seria em 1, 3, 5, ou 7.
+        // Forçamos o computador a cometer um erro jogando em outro canto.
+        if (squares[2] === null) return 2;
+    }
+
+    // Se a armadilha não for detectada, joga perfeitamente.
+    return findBestMove(squares);
+}
+
+
+// --- LÓGICA MINIMAX (PERFEITA) ---
 
 function findBestMove(squares: SquareValue[]): number {
   let bestVal = -Infinity;

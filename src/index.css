@@ -53,6 +53,12 @@ body {
   color: white;
 }
 
+/* ADIÇÃO NECESSÁRIA ABAIXO */
+.mode-button.medium {
+  background-color: #ff9800; /* Laranja para o nível médio */
+  color: white;
+}
+
 .mode-button.hard {
   background-color: #f44336; /* Vermelho para difícil */
   color: white;

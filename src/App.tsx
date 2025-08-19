@@ -15,8 +15,8 @@ function Square({ value, onSquareClick }: { value: SquareValue; onSquareClick: (
 // COMPONENTE PRINCIPAL
 function Board() {
   const [gameMode, setGameMode] = useState<'two-player' | 'single-player' | null>(null);
-  // Novo estado para a dificuldade
-  const [difficulty, setDifficulty] = useState<'easy' | 'hard' | null>(null);
+  // 1. Atualiza o estado para incluir 'medium'
+  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard' | null>(null);
 
   const [isXNext, setIsXNext] = useState<boolean>(true);
   const [squares, setSquares] = useState<SquareValue[]>(Array(9).fill(null));
@@ -39,24 +39,26 @@ function Board() {
 
   // Efeito que aciona a jogada do computador
   useEffect(() => {
-    // Só executa se for a vez do computador no modo single-player e o jogo não tiver acabado
     if (gameMode === 'single-player' && !isXNext && !calculateWinner(squares)) {
       
-      let computerMove: number;
+      let computerMove: number = -1;
 
-      // Lógica para escolher a jogada baseada na dificuldade
+      // 2. Adiciona a lógica para o nível médio
       if (difficulty === 'hard') {
         computerMove = findBestMove(squares);
+      } else if (difficulty === 'medium') {
+        computerMove = findMediumMove(squares);
       } else { // 'easy'
         const emptySquares = squares
           .map((square, index) => (square === null ? index : null))
           .filter((val) => val !== null) as number[];
         
-        const randomIndex = Math.floor(Math.random() * emptySquares.length);
-        computerMove = emptySquares[randomIndex];
+        if (emptySquares.length > 0) {
+            const randomIndex = Math.floor(Math.random() * emptySquares.length);
+            computerMove = emptySquares[randomIndex];
+        }
       }
 
-      // Adiciona um pequeno atraso para a jogada parecer mais natural
       if (computerMove !== -1) {
         setTimeout(() => {
           handleClick(computerMove, true); 
@@ -73,7 +75,7 @@ function Board() {
   function handleBackToMenu() {
     handleReset();
     setGameMode(null);
-    setDifficulty(null); // Reseta a dificuldade também
+    setDifficulty(null);
   }
 
   const winner = calculateWinner(squares);
@@ -90,7 +92,6 @@ function Board() {
   
   // RENDERIZAÇÃO CONDICIONAL DA UI
 
-  // 1. Tela Inicial: Escolher modo de jogo
   if (!gameMode) {
     return (
       <div className="game-container">
@@ -107,14 +108,17 @@ function Board() {
     );
   }
 
-  // 2. Tela Intermediária: Escolher dificuldade (se modo for single-player)
   if (gameMode === 'single-player' && !difficulty) {
     return (
       <div className="game-container">
         <h1>Escolha a Dificuldade</h1>
+        {/* 3. Adiciona o botão de dificuldade Média */}
         <div className="mode-selection">
           <button className="mode-button easy" onClick={() => setDifficulty('easy')}>
             Fácil
+          </button>
+          <button className="mode-button medium" onClick={() => setDifficulty('medium')}>
+            Médio
           </button>
           <button className="mode-button hard" onClick={() => setDifficulty('hard')}>
             Impossível
@@ -125,7 +129,6 @@ function Board() {
     );
   }
 
-  // 3. Tela Principal: O Jogo
   return (
     <div className="game-container">
       <div className="status">{status}</div>
@@ -163,21 +166,46 @@ function calculateWinner(squares: SquareValue[]): SquareValue {
   return null;
 }
 
+// --- LÓGICA NÍVEL MÉDIO ---
+function findMediumMove(squares: SquareValue[]): number {
+  const emptySquares = squares
+    .map((sq, index) => (sq === null ? index : null))
+    .filter((val) => val !== null) as number[];
+
+  // 1. Checa se o COMPUTADOR pode ganhar
+  for (const i of emptySquares) {
+    const tempSquares = squares.slice();
+    tempSquares[i] = COMPUTER_PLAYER;
+    if (calculateWinner(tempSquares) === COMPUTER_PLAYER) {
+      return i; // Jogada vencedora
+    }
+  }
+
+  // 2. Checa se o HUMANO pode ganhar (e bloqueia)
+  for (const i of emptySquares) {
+    const tempSquares = squares.slice();
+    tempSquares[i] = HUMAN_PLAYER;
+    if (calculateWinner(tempSquares) === HUMAN_PLAYER) {
+      return i; // Bloqueia o oponente
+    }
+  }
+
+  // 3. Se não houver jogadas críticas, joga aleatoriamente
+  const randomIndex = Math.floor(Math.random() * emptySquares.length);
+  return emptySquares[randomIndex];
+}
+
 // --- LÓGICA MINIMAX (NÍVEL DIFÍCIL) ---
 
-// Função principal que inicia o Minimax
 function findBestMove(squares: SquareValue[]): number {
   let bestVal = -Infinity;
   let bestMove = -1;
 
   for (let i = 0; i < squares.length; i++) {
     if (squares[i] === null) {
-      squares[i] = COMPUTER_PLAYER; 
-      
-      // A CORREÇÃO ESTÁ AQUI:
-      const moveVal = minimax(squares, 0, false); // Trocado 'let' por 'const'
-      
-      squares[i] = null; // Desfaz a jogada
+      squares[i] = COMPUTER_PLAYER;
+      const moveVal = minimax(squares, 0, false);
+      squares[i] = null;
 
       if (moveVal > bestVal) {
         bestMove = i;
@@ -188,16 +216,13 @@ function findBestMove(squares: SquareValue[]): number {
   return bestMove;
 }
 
-// Função recursiva Minimax
 function minimax(board: SquareValue[], depth: number, isMaximizing: boolean): number {
   const winner = calculateWinner(board);
 
-  // Casos base: o jogo terminou
   if (winner === COMPUTER_PLAYER) return 10 - depth;
   if (winner === HUMAN_PLAYER) return depth - 10;
-  if (board.every(square => square !== null)) return 0; // Empate
+  if (board.every(square => square !== null)) return 0;
 
-  // Se é a vez do maximizador (Computador)
   if (isMaximizing) {
     let best = -Infinity;
     for (let i = 0; i < board.length; i++) {
@@ -208,9 +233,7 @@ function minimax(board: SquareValue[], depth: number, isMaximizing: boolean): nu
       }
     }
     return best;
-  } 
-  // Se é a vez do minimizador (Humano)
-  else {
+  } else {
     let best = Infinity;
     for (let i = 0; i < board.length; i++) {
       if (board[i] === null) {
